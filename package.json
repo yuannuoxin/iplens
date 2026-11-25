@@ -1,0 +1,16 @@
+{
+  "name": "iplens",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "IPLens · IP 检测雷达：Cloudflare Workers / Pages 双形态部署",
+  "scripts": {
+    "dev": "node dev/serve.mjs",
+    "dev:worker": "wrangler dev",
+    "dry": "wrangler deploy --dry-run --outdir=.wrangler-build",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

@@ -12,10 +12,14 @@
 ## 目录结构
 
 ```
-web/                       前端静态文件（Cloudflare Pages 构建输出目录）
+web/                       前端静态文件（Pages 构建输出目录 / Workers 静态资源目录）
   index.html
   app.js
   styles.css
+worker/
+  index.ts                 Cloudflare Workers 入口（export default { fetch }）
+wrangler.toml              Workers 部署配置（main + [assets] 绑定 ASSETS）
+package.json               wrangler 依赖与部署脚本
 functions/                 Cloudflare Pages Functions（根目录自动编译）
   functions/v1/app.ts      → 路由 /functions/v1/app
 lib/
@@ -25,6 +29,13 @@ deno/
 dev/
   serve.mjs                本地开发服务器
 ```
+
+两种部署形态共用同一份 `lib/handler.ts`：
+
+| 形态 | 入口 | `/functions/v1/app` 由谁处理 |
+| --- | --- | --- |
+| Pages | `functions/functions/v1/app.ts`（Cloudflare 自动编译） | Pages Functions |
+| Workers | `worker/index.ts` | Worker 先命中该路径，其余请求交给 `env.ASSETS` |
 
 后端 `lib/handler.ts` 只用标准 Web API（fetch / Request / Response / Headers），同一份代码同时跑在 Cloudflare Workers 运行时与本地 Node/Deno。Cloudflare 会自动给请求带上 `cf-connecting-ip` 头，服务端据此识别访客真实 IP；ip-api 的 HTTP 请求在服务端发出，不受浏览器混合内容限制，双源校验完整保留。
 
@@ -47,6 +58,46 @@ dev/
 ```bash
 npx wrangler pages deploy web --project-name=iplens
 ```
+
+## 部署到 Cloudflare Workers
+
+Workers 形态不走 Pages 的 `functions/` 自动编译，改由 `worker/index.ts` 统一入口，其余请求交给静态资源绑定。
+
+```bash
+npm install
+npm run dev:worker   # 本地 Worker 运行时，默认 http://127.0.0.1:8787/
+npm run dry          # 打包校验，不上传
+npx wrangler login   # 首次部署前登录
+npm run deploy       # 真正部署
+```
+
+`wrangler.toml` 关键配置：
+
+```toml
+name = "iplens"
+main = "worker/index.ts"
+compatibility_date = "2026-01-01"
+
+[assets]
+directory = "./web"
+binding = "ASSETS"
+run_worker_first = true
+```
+
+`run_worker_first = true` 是必需的。若不存在该配置，静态资源层会先接管请求，而 `/functions/v1/app` 没有对应的静态文件，会被直接返回 404，前端拿不到任何数据。
+
+### GitHub 集成（Workers Builds）
+
+控制台 **Workers & Pages → Create → Workers → Connect to Git** 选择本仓库，构建配置填：
+
+- **Install command**：`npm ci`
+- **Build command**：`npx wrangler deploy`
+
+Worker 名称取自 `wrangler.toml` 的 `name`，之后每次 push 自动部署。
+
+### 自定义域名
+
+`iplens.imxiaohe.com` 若原本绑在 Pages 项目上，切到 Workers 时需在 Worker 的 **Settings → Domains & Routes → Add custom domain** 重新绑定，并先解绑 Pages 上的同域名，否则会报域名已被占用。
 
 ## 本地开发
 
