@@ -8,4 +8,3 @@ directory = "./web"
 binding = "ASSETS"
 # 让 Worker 先处理请求，/functions/v1/app 才能命中 handler，其余路径再交给静态资源
 run_worker_first = true
-
